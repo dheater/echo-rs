@@ -1,6 +1,6 @@
 use clap::Parser;
 use log::error;
-use std::io::{Read, Write};
+use std::io;
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::thread;
 
@@ -21,9 +21,7 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                thread::spawn(move|| {
-                    handle_client(stream)
-                });
+                thread::spawn(move || handle_client(stream));
             }
             Err(e) => {
                 error!("Stream error: {}", e);
@@ -34,18 +32,9 @@ fn main() {
     drop(listener);
 }
 
-
 fn handle_client(mut stream: TcpStream) {
-    let mut data = [0 as u8; 1024];
-    while match stream.read(&mut data) {
-        Ok(size) => {
-            stream.write(&data[0..size]).expect("Error on write");
-            true
-        },
-        Err(_) => {
-            error!("An error occurred, terminating connection with {}", stream.peer_addr().unwrap());
-            stream.shutdown(Shutdown::Both).unwrap();
-            false
-        }
-    } {}
+    let _ = io::copy(&mut stream.try_clone().unwrap(), &mut stream);
+    stream
+        .shutdown(Shutdown::Both)
+        .expect("shutdown call failed");
 }
